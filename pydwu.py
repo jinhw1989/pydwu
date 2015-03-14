@@ -2,13 +2,15 @@
 
 from datetime import datetime, timedelta
 import os
-import sys
 import re
-import urllib2
+import shutil
+import sys
 import tempfile
 import threading
 import time
 import urllib
+import urllib2
+
 # try:
 #     from argparse import ArgumentParser as ArgParser
 # except ImportError:
@@ -64,6 +66,8 @@ def get_history_using_HTTP(START_DATE, END_DATE, AIRPORT):
         return False
 
 def merge_files(airport):
+    """
+    """
     work_folder = os.path.join(working_dir, airport)
     file_list = os.listdir(work_folder)
     with open(os.path.join(work_folder, "..\\merged_history.csv"), "w") as outfile:
@@ -75,19 +79,44 @@ def merge_files(airport):
                 infile.next()
                 for line in infile:
                     outfile.write(line)
+    # replace files
+    shutil.copyfile(os.path.join(working_dir, 'tempfile.csv'), os.path.join(
+        working_dir, "merged_history.csv"))
+    # remove temp file
+    os.remove(os.path.join(working_dir, "tempfile.csv"))
+
+def remove_lines():
+    """
+    Remove those lines which have no weather recorded. 
+
+    Note: It may results in the majority rule. When filling with minutes data, 
+        whose missing values may considered as incorrectly.
+    """
+    with open(os.path.join(working_dir, "tempfile.csv"), "w") as outfile:
+        with open(os.path.join(working_dir, "merged_history.csv")) as infile:
+            outfile.write(infile.next())
+            for line in infile:
+                if line[0].isdigit():
+                    outfile.write(line)
+    # replace files
+    shutil.copyfile(os.path.join(working_dir, 'tempfile.csv'), os.path.join(
+        working_dir, "merged_history.csv"))
+    # remove temp file
+    os.remove(os.path.join(working_dir, "tempfile.csv"))
 
 def pydwu():
     """
     """
     try:
         sd = "1991-01-01"
-        ed = "1991-01-31"
+        ed = "1991-01-10"
         START_DATE = datetime.strptime(sd, "%Y-%m-%d")
         END_DATE = datetime.strptime(ed, "%Y-%m-%d")
         AIRPORT = "KMDW"
         status = get_history_using_HTTP(START_DATE, END_DATE, AIRPORT)
         if status is True:
             merge_files(AIRPORT)
+            remove_lines()
         content = urllib2.urlopen("http://www.whereismyip.com").read()
         ip_addr = re.search(r'[0-9]+(?:\.[0-9]+){3}', content).group(0)
         print ip_addr
