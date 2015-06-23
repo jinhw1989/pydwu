@@ -10,41 +10,46 @@ import threading
 import time
 import urllib
 import urllib2
+import pandas as pd
+import getopt
 
-# try:
-#     from argparse import ArgumentParser as ArgParser
-# except ImportError:
-#     from optparse import OptionParser as ArgParser
 
 __version__ = '0.0.1'
+__author__ = 'Hongwei Jin'
 
 usage = \
-"""
-usage pydwu [OPTIONS] --start=<YYYY-MM-DD> --end=<YYYY-MM-DD> --location=( ZIP | City | Airport )
-    -h, --help  Display this usage message
-    -w          Folder to store downloadereqdb.wmo=99999d file
-    -z ZIP      Download zip code
-    --version   Display version
-Example:
-    Usage:
-    pydwu --start=2010-01-02 --end-2010-02-01 --location=60616
-"""
+    """
+    Pydwu version {}
+    : a Python package to download observed data from WeatherUnderground without using API.
+
+    usage pydwu [OPTIONS] -s <YYYY-MM-DD> -e <YYYY-MM-DD> -l <AirportCode>
+        -h, --help  Display this usage message
+        -s          Start date: YYYY-MM-DD
+        -e          End date: YYYY-MM-DD
+        -l          Location by airport code: e.g. KLAX
+        -v, --version   Display version
+    Example:
+        Usage:
+            pydwu -s 2010-01-02 -e 2010-02-01 -l KLAX
+    """.format(__version__)
+
 
 def get_history_using_HTTP(START_DATE, END_DATE, AIRPORT):
-    '''
-    Get Historical Weather Data through HTTP
+    ''' Get Historical Weather Data through HTTP
+
+    :return status: True if downloaded successfully
+    :rtype: boolean
     '''
     try:
         num_days = (END_DATE - START_DATE).days
         work_day = START_DATE
-
         # @TODO: use multi thread to download weather data if possible.
         for i in range(num_days):
             y = work_day.year
             m = "%02d" % work_day.month
             d = "%02d" % work_day.day
-            address = "http://www.wunderground.com/history/airport/{}/{}/{}/{}/DailyHistory.html?format=1".format(AIRPORT,
-                y, m, d)
+            address = "http://www.wunderground.com/history/airport/{}/{}/{}/{}/DailyHistory.html?format=1".format(
+                AIRPORT, y, m, d)
             try:
                 os.mkdir(os.path.join(working_dir, AIRPORT))
             except OSError:
@@ -65,8 +70,12 @@ def get_history_using_HTTP(START_DATE, END_DATE, AIRPORT):
     except IOError:
         return False
 
+
 def merge_files(airport):
-    """
+    """ Merge the data in local folder into a single one
+
+    :param airport: airport code
+    :type airport: string
     """
     work_folder = os.path.join(working_dir, airport)
     file_list = os.listdir(work_folder)
@@ -80,43 +89,47 @@ def merge_files(airport):
                 for line in infile:
                     outfile.write(line)
     # replace files
-    shutil.copyfile(os.path.join(working_dir, 'tempfile.csv'), os.path.join(
-        working_dir, "merged_history.csv"))
+    shutil.copyfile(os.path.join(working_dir, 'merged_history.csv'), "merged_history.csv")
     # remove temp file
-    os.remove(os.path.join(working_dir, "tempfile.csv"))
+    # os.remove(os.path.join(working_dir, "merged_history.csv"))
+
 
 def remove_lines():
     """
-    Remove those lines which have no weather recorded. 
+    Remove those lines which have no weather recorded.
 
-    Note: It may results in the majority rule. When filling with minutes data, 
+    Note: It may results in the majority rule. When filling with minutes data,
         whose missing values may considered as incorrectly.
     """
-    with open(os.path.join(working_dir, "tempfile.csv"), "w") as outfile:
+    with open(os.path.join(working_dir, "merged_history.csv"), "w") as outfile:
         with open(os.path.join(working_dir, "merged_history.csv")) as infile:
             outfile.write(infile.next())
             for line in infile:
                 if line[0].isdigit():
                     outfile.write(line)
     # replace files
-    shutil.copyfile(os.path.join(working_dir, 'tempfile.csv'), os.path.join(
+    shutil.copyfile(os.path.join(working_dir, 'merged_history.csv'), os.path.join(
         working_dir, "merged_history.csv"))
     # remove temp file
-    os.remove(os.path.join(working_dir, "tempfile.csv"))
+    os.remove(os.path.join(working_dir, "merged_history.csv"))
 
-def pydwu():
+
+def pydwu(start_date, end_date, airport):
     """
     """
     try:
-        sd = "1991-01-01"
-        ed = "1991-01-10"
+        sd = start_date
+        ed = end_date
         START_DATE = datetime.strptime(sd, "%Y-%m-%d")
-        END_DATE = datetime.strptime(ed, "%Y-%m-%d")
-        AIRPORT = "KMDW"
+        END_DATE = datetime.strptime(ed, "%Y-%m-%d") + timedelta(days=1)
+        AIRPORT = airport
         status = get_history_using_HTTP(START_DATE, END_DATE, AIRPORT)
         if status is True:
             merge_files(AIRPORT)
             remove_lines()
+        else:
+            print "Connection failed, please try again"
+            sys.exit()
         content = urllib2.urlopen("http://www.whereismyip.com").read()
         ip_addr = re.search(r'[0-9]+(?:\.[0-9]+){3}', content).group(0)
         print ip_addr
@@ -126,16 +139,59 @@ def pydwu():
 
     pass
 
-def main():
+
+def main(argv):
     """
     start
     """
     try:
         global working_dir
-        working_dir = os.path.dirname(os.path.abspath(__file__))
-        pydwu()
+        # tf = tempfile.TemporaryFile(suffix='.csv')
+        # tf.close()
+        # print tf.name
+        # working_dir = os.path.dirname(os.path.abspath(__file__))
+        working_dir = tempfile.gettempdir()
+        try:
+            # print getopt.getopt(argv, "s:e:l:", ["start", "end", 'location'])
+            opts, args = getopt.getopt(argv, "hvs:e:l:", ["help", "version", "start", "end", 'location'])
+        except getopt.GetoptError as err:
+            print str(err)
+            print usage
+            sys.exit()
+        for o, a in opts:
+            if o.lower() in ('-h', '--help'):
+                print usage
+                sys.exit()
+            elif o.lower() in ("-v", "--version"):
+                print "Pydwu with version {}".format(__version__)
+                sys.exit()
+            elif o in ("-s", "--start"):
+                start_date = a
+            elif o in ("-e", "--end"):
+                end_date = a
+            elif o in ("-l", "--location"):
+                location = a
+        try:
+            start_date
+        except NameError:
+            print "Please specify the start date"
+            print usage
+            sys.exit()
+        try:
+            end_date
+        except NameError:
+            print "Please specify the end date"
+            print usage
+            sys.exit()
+        try:
+            location
+        except NameError:
+            print "Please specify the location"
+            print usage
+            sys.exit()
+        pydwu(start_date, end_date, location)
     except KeyboardInterrupt:
         print("\nCancelling download processing...")
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1:])
