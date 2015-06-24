@@ -30,7 +30,7 @@ usage = \
         -v, --version   Display version
     Example:
         Usage:
-            pydwu -s 2010-01-02 -e 2010-02-01 -l KLAX
+            python pydwu.py -s 2010-01-02 -e 2010-02-01 -l KLAX
     """.format(__version__)
 
 
@@ -89,7 +89,7 @@ def merge_files(airport):
                 for line in infile:
                     outfile.write(line)
     # replace files
-    shutil.copyfile(os.path.join(working_dir, 'merged_history.csv'), "merged_history.csv")
+    shutil.copyfile(os.path.join(working_dir, 'merged_history.csv'), "{}_merged_history.csv".format(airport))
     # remove temp file
     # os.remove(os.path.join(working_dir, "merged_history.csv"))
 
@@ -126,7 +126,7 @@ def pydwu(start_date, end_date, airport):
         status = get_history_using_HTTP(START_DATE, END_DATE, AIRPORT)
         if status is True:
             merge_files(AIRPORT)
-            remove_lines()
+            # remove_lines()
         else:
             print "Connection failed, please try again"
             sys.exit()
