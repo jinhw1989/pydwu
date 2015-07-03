@@ -12,7 +12,7 @@ import urllib
 import urllib2
 import pandas as pd
 import getopt
-
+import requests
 
 __version__ = '0.0.1'
 __author__ = 'Hongwei Jin'
@@ -79,7 +79,7 @@ def merge_files(airport):
     """
     work_folder = os.path.join(working_dir, airport)
     file_list = os.listdir(work_folder)
-    with open(os.path.join(work_folder, "..\\merged_history.csv"), "w") as outfile:
+    with open(os.path.join(work_folder, "merged_history.csv"), "w") as outfile:
         for line in open(os.path.join(work_folder, file_list[0])):
             outfile.write(line)
         print "write the first line"
