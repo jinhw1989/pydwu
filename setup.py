@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup, find_packages
+# execuable version in windows. Example: https://github.com/rg3/youtube-dl/blob/9e0b5791281c68e5773555688928184064396011/setup.py
 
 setup(
     name='pydwu',

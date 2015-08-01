@@ -13,8 +13,9 @@ import urllib2
 import pandas as pd
 import getopt
 import requests
+import pdb
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 __author__ = 'Hongwei Jin'
 
 usage = \
@@ -33,6 +34,11 @@ usage = \
             python pydwu.py -s 2010-01-02 -e 2010-02-01 -l KLAX
     """.format(__version__)
 
+LOG = \
+    """
+    * using pandas to store data
+    * drop NaN, no data observed rows
+    """
 
 def get_history_using_HTTP(START_DATE, END_DATE, AIRPORT):
     ''' Get Historical Weather Data through HTTP
@@ -43,30 +49,21 @@ def get_history_using_HTTP(START_DATE, END_DATE, AIRPORT):
     try:
         num_days = (END_DATE - START_DATE).days
         work_day = START_DATE
+        df_list = []
         # @TODO: use multi thread to download weather data if possible.
         for i in range(num_days):
+            print "Working on", work_day
             y = work_day.year
             m = "%02d" % work_day.month
             d = "%02d" % work_day.day
             address = "http://www.wunderground.com/history/airport/{}/{}/{}/{}/DailyHistory.html?format=1".format(
                 AIRPORT, y, m, d)
-            try:
-                os.mkdir(os.path.join(working_dir, AIRPORT))
-            except OSError:
-                pass
-            filename = os.path.join(
-                working_dir, AIRPORT, "wunderground_{}_{}_{}.csv".format(y, m, d))
-            urllib.urlretrieve(address, filename)
-            outfile = ""
-            with open(filename, "r") as infile:
-                infile.readline()
-                for line in infile:
-                    line = line.replace("<br />", "")
-                    outfile += line
-            with open(filename, "w") as inputFile:
-                inputFile.write(outfile)
+            df = pd.read_csv(address)
+            df = df.rename(columns={df.columns[-1]: df.columns[-1].strip("<br />"), df.columns[0]:df.columns[0][:4]})
+            df[df.columns[-1]] = df[df.columns[-1]].apply(lambda x: str(x).strip("<br />"))
+            df_list.append(df)
             work_day = work_day + timedelta(days=1)
-        return True
+        return pd.concat(df_list, ignore_index=True)
     except IOError:
         return False
 
@@ -79,7 +76,7 @@ def merge_files(airport):
     """
     work_folder = os.path.join(working_dir, airport)
     file_list = os.listdir(work_folder)
-    with open(os.path.join(work_folder, "merged_history.csv"), "w") as outfile:
+    with open(os.path.join(working_dir, "merged_history.csv"), "w") as outfile:
         for line in open(os.path.join(work_folder, file_list[0])):
             outfile.write(line)
         print "write the first line"
@@ -111,7 +108,7 @@ def remove_lines():
     shutil.copyfile(os.path.join(working_dir, 'merged_history.csv'), os.path.join(
         working_dir, "merged_history.csv"))
     # remove temp file
-    os.remove(os.path.join(working_dir, "merged_history.csv"))
+    # os.remove(os.path.join(working_dir, "merged_history.csv"))
 
 
 def pydwu(start_date, end_date, airport):
@@ -123,10 +120,13 @@ def pydwu(start_date, end_date, airport):
         START_DATE = datetime.strptime(sd, "%Y-%m-%d")
         END_DATE = datetime.strptime(ed, "%Y-%m-%d") + timedelta(days=1)
         AIRPORT = airport
-        status = get_history_using_HTTP(START_DATE, END_DATE, AIRPORT)
-        if status is True:
-            merge_files(AIRPORT)
-            # remove_lines()
+        df_all = get_history_using_HTTP(START_DATE, END_DATE, AIRPORT)
+        if not df_all.empty:
+            # drop rows
+            df_all = df_all[df_all["Time"] != "No daily or hourly history data available<br />"]
+            df_all = df_all[df_all["TemperatureF"] != -9999]
+
+            df_all.to_csv("{}_merged_history.csv".format(airport))
         else:
             print "Connection failed, please try again"
             sys.exit()
